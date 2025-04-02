@@ -3,17 +3,17 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
+import json
 
-# Set OpenAI API key from env
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI client (v1.0+ syntax)
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-import json
 creds_dict = st.secrets["google_service_account"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope)
-client = gspread.authorize(creds)
-sheet = client.open("LLM Brand Mention Audit").sheet1
+client_gs = gspread.authorize(creds)
+sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
 # Streamlit UI
 st.title("🔍 LLM Brand Mention Audit")
@@ -41,14 +41,14 @@ if st.button("Run Audit"):
         if not prompt.strip():
             continue
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": prompt}
                 ]
             )
-            reply = response['choices'][0]['message']['content']
+            reply = response.choices[0].message.content
             mentioned = brand.lower() in reply.lower()
 
             results.append([prompt, brand, "Yes" if mentioned else "No"])

@@ -3,18 +3,18 @@ import openai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
+import json
+import streamlit as st  # Required to read st.secrets in Streamlit context
 
-# Load API key from environment
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI client
+client_ai = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Google Sheet setup
-google_sheet_name = "LLM Brand Mention Audit"
-credentials_file = "credentials.json"
-
+# Google Sheets setup using secrets.toml
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_file, scope)
-client = gspread.authorize(creds)
-sheet = client.open(google_sheet_name).sheet1
+creds_dict = st.secrets["google_service_account"]
+creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope)
+client_gs = gspread.authorize(creds)
+sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
 # Prompts and keywords
 prompts = [
@@ -37,11 +37,11 @@ if not sheet.row_values(1):
 # Run audit
 for prompt in prompts:
     try:
-        response = openai.ChatCompletion.create(
+        response = client_ai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}]
         )
-        reply_text = response['choices'][0]['message']['content'].strip()
+        reply_text = response.choices[0].message.content.strip()
         mentioned = "Yes" if check_brand_mentions(reply_text) else "No"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([timestamp, prompt, mentioned, reply_text])
