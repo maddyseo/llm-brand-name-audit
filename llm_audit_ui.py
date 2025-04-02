@@ -11,7 +11,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 import json
 creds_dict = st.secrets["google_service_account"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(json.dumps(creds_dict)), scope)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope)
 client = gspread.authorize(creds)
 sheet = client.open("LLM Brand Mention Audit").sheet1
 
