@@ -16,20 +16,20 @@ client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
 # Streamlit UI
-st.title("🔍 LLM Brand Mention Audit")
+st.title("LLM Brand Mention Audit - A Tool by Maddy")
 st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
 # Default prompts
 default_prompts = [
-    "What’s the best live Q&A tool?",
-    "What software do teachers use for polls?",
-    "Which event tools help with employee engagement?",
-    "Best polling tool for university lectures",
-    "Top interactive Q&A platforms for webinars"
+    "What’s the best shoe brand in USA",
+    "What's most comfortable shoe you can recommend",
+    "Best Addidas alternative",
+    "Shoes suitable for running",
+    "Top 3 shoe brands in USA"
 ]
 
 prompts = st.text_area("Enter one prompt per line:", value="\n".join(default_prompts))
-brand = st.text_input("Brand name to track (e.g., Pigeonhole Live):", value="Pigeonhole Live")
+brand = st.text_input("Brand name to track (e.g., Nike):", value="Nike")
 
 if st.button("Run Audit"):
     prompt_list = prompts.split("\n")
