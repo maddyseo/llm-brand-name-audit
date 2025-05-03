@@ -5,6 +5,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os
 import json
 import random
+import pandas as pd
+from datetime import datetime
 
 # Inject custom CSS
 st.markdown("""
@@ -38,15 +40,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
+# Initialize session states
 if "page" not in st.session_state:
     st.session_state.page = "Run Audit"
-
-if "saved_prompts" not in st.session_state:
-    st.session_state.saved_prompts = []
-
 if "audit_results" not in st.session_state:
     st.session_state.audit_results = []
+if "saved_prompts" not in st.session_state:
+    st.session_state.saved_prompts = []
 
 # Sidebar navigation
 with st.sidebar:
@@ -70,7 +70,7 @@ with st.sidebar:
         </style>
     """, unsafe_allow_html=True)
 
-# Initialize OpenAI client
+# OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Google Sheets setup
@@ -98,9 +98,8 @@ if st.session_state.page == "Run Audit":
 
     if st.button("Run Audit"):
         prompt_list = prompts.split("\n")
-        st.write("Running audits...")
+        st.session_state.audit_results = []  # Clear previous
 
-        audit_results = []
         for prompt in prompt_list:
             if not prompt.strip():
                 continue
@@ -113,44 +112,58 @@ if st.session_state.page == "Run Audit":
                     ]
                 )
                 reply = response.choices[0].message.content
-                mentioned = brand.lower() in reply.lower()
-                audit_results.append({"prompt": prompt, "brand": brand, "mentioned": "Yes" if mentioned else "No"})
+                mentioned = "Yes" if brand.lower() in reply.lower() else "No"
+                st.session_state.audit_results.append({
+                    "Prompt": prompt.strip(),
+                    "Brand": brand,
+                    "Mentioned": mentioned
+                })
             except Exception as e:
-                audit_results.append({"prompt": prompt, "brand": brand, "mentioned": f"Error: {str(e)}"})
+                st.session_state.audit_results.append({
+                    "Prompt": prompt.strip(),
+                    "Brand": brand,
+                    "Mentioned": f"Error: {str(e)}"
+                })
 
-        st.session_state.audit_results = audit_results
-
-        sheet.clear()
-        sheet.append_row(["Prompt", "Brand", "Mentioned?"])
-        for row in audit_results:
-            sheet.append_row([row["prompt"], row["brand"], row["mentioned"]])
-
-        st.success("Audit complete! ✅")
-
-    # Display audit results from session state
     if st.session_state.audit_results:
-        for idx, row in enumerate(st.session_state.audit_results):
-            col1, col2 = st.columns([0.85, 0.15])
-            col1.write(f"**Prompt {idx+1}:** {row['prompt']} → Mentioned: {row['mentioned']}")
-            if col2.button("Save", key=f"save_{idx}"):
-                if len(st.session_state.saved_prompts) >= 100:
-                    st.warning("Cannot save: Maximum of 100 prompts reached.")
-                else:
-                    if row["prompt"] not in st.session_state.saved_prompts:
-                        st.session_state.saved_prompts.append(row["prompt"])
-                        st.success(f"Saved Prompt {idx+1} ✅")
-                    else:
-                        st.info(f"Prompt {idx+1} already saved.")
+        df = pd.DataFrame(st.session_state.audit_results)
 
-        if st.button("💾 Save All Prompts"):
-            remaining_slots = 100 - len(st.session_state.saved_prompts)
-            unsaved_prompts = [r["prompt"] for r in st.session_state.audit_results if r["prompt"] not in st.session_state.saved_prompts]
-            to_save = unsaved_prompts[:remaining_slots]
-            st.session_state.saved_prompts.extend(to_save)
-            if len(unsaved_prompts) > remaining_slots:
-                st.warning("Only some prompts were saved (max 100 reached).")
-            else:
-                st.success("All prompts saved!")
+        def save_prompt_row(idx):
+            if len(st.session_state.saved_prompts) < 100:
+                now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                prompt_data = st.session_state.audit_results[idx]
+                prompt_data_with_date = {
+                    "Prompt": prompt_data["Prompt"],
+                    "Result": prompt_data["Mentioned"],
+                    "Date Saved": now
+                }
+                st.session_state.saved_prompts.append(prompt_data_with_date)
+
+        st.write("### Audit Results")
+        for idx, row in df.iterrows():
+            col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
+            col1.write(f"**Prompt {idx+1}:** {row['Prompt']}")
+            col2.write(f"**Mentioned:** {row['Mentioned']}")
+            if col3.button("Save", key=f"save_{idx}"):
+                save_prompt_row(idx)
+
+        csv_data = df.drop(columns=["Brand"]).to_csv(index=False).encode("utf-8")
+        st.download_button("📥 Download Audit Results (.csv)", csv_data, file_name="audit_results.csv")
+
+# --- PAGE: SAVED PROMPTS ---
+elif st.session_state.page == "Saved Prompts":
+    st.title("💾 Saved Prompts")
+    if st.session_state.saved_prompts:
+        df_saved = pd.DataFrame(st.session_state.saved_prompts)
+        st.markdown(f"**{len(df_saved)}/100 prompts saved**")
+        st.dataframe(df_saved, use_container_width=True)
+
+        for idx, row in df_saved.iterrows():
+            if st.button("❌", key=f"delete_{idx}"):
+                st.session_state.saved_prompts.pop(idx)
+                st.experimental_rerun()
+    else:
+        st.info("No saved prompts yet.")
 
 # --- PAGE: GENERATE PROMPTS ---
 elif st.session_state.page == "Generate Prompts":
@@ -165,6 +178,7 @@ elif st.session_state.page == "Generate Prompts":
         business_description = st.text_area("Tell us more about your business:")
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
         audience = st.text_input("Target audience (optional):")
+        prompt_count = st.number_input("Number of prompts (1-100)", min_value=1, max_value=100, value=10, step=1)
 
         def generate_prompts(services, location):
             locations = [location]
@@ -185,7 +199,7 @@ elif st.session_state.page == "Generate Prompts":
             ]
 
             prompts = []
-            for _ in range(100):
+            for _ in range(prompt_count):
                 service = random.choice(services)
                 loc = random.choice(locations)
                 template = random.choice(base_templates)
@@ -209,18 +223,3 @@ elif st.session_state.page == "Generate Prompts":
                     prompts_text = "\n".join(generated_prompts)
                     st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
                     st.text_area("📋 Copy Prompts", prompts_text, height=300)
-
-# --- PAGE: SAVED PROMPTS ---
-elif st.session_state.page == "Saved Prompts":
-    st.title("💾 Saved Prompts")
-    st.write(f"**{len(st.session_state.saved_prompts)}/100 prompts saved**")
-
-    if st.session_state.saved_prompts:
-        for idx, prompt in enumerate(st.session_state.saved_prompts):
-            col1, col2 = st.columns([0.9, 0.1])
-            col1.write(f"{idx+1}. {prompt}")
-            if col2.button("❌", key=f"del_{idx}"):
-                st.session_state.saved_prompts.pop(idx)
-                st.experimental_rerun()
-    else:
-        st.info("No saved prompts yet.")
