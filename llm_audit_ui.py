@@ -9,7 +9,7 @@ import random
 # Inject custom CSS
 st.markdown("""
     <style>
-    .main {
+    .main, .block-container {
         background-color: #ffffff;
         color: #000000;
     }
@@ -17,11 +17,36 @@ st.markdown("""
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         color: white;
     }
+    .sidebar-item {
+        padding: 10px 15px;
+        margin: 5px 0;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    .sidebar-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    .sidebar-item-active {
+        background-color: rgba(255, 255, 255, 0.3);
+        font-weight: bold;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Sidebar navigation
-page = st.sidebar.radio("Navigate", ["Run Audit", "Generate Prompts"])
+# Sidebar navigation logic
+if "selected_page" not in st.session_state:
+    st.session_state.selected_page = "Run Audit"
+
+def sidebar_item(label, key):
+    selected = st.session_state.selected_page == key
+    css_class = "sidebar-item-active" if selected else "sidebar-item"
+    st.sidebar.markdown(f'<div class="{css_class}">{label}</div>', unsafe_allow_html=True)
+    if st.sidebar.button(label, key=key):
+        st.session_state.selected_page = key
+
+st.sidebar.markdown("## Navigation")
+sidebar_item("🏃‍♂️ Run Audit", "Run Audit")
+sidebar_item("✨ Generate Prompts", "Generate Prompts")
 
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -35,7 +60,7 @@ sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
 # ----------------------
 # PAGE 1: RUN AUDIT
-if page == "Run Audit":
+if st.session_state.selected_page == "Run Audit":
     st.title("LLM Brand Mention Audit - A Tool by Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
@@ -86,7 +111,7 @@ if page == "Run Audit":
 
 # ----------------------
 # PAGE 2: GENERATE PROMPTS
-elif page == "Generate Prompts":
+elif st.session_state.selected_page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
 
     if "generate_clicked" not in st.session_state:
