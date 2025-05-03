@@ -16,7 +16,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# --- Streamlit UI ---
+# Streamlit UI
 st.title("LLM Brand Mention Audit - A Tool by Maddy")
 st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
@@ -66,14 +66,20 @@ if st.button("Run Audit"):
     st.success("Audit complete! ✅")
     st.dataframe(results, use_container_width=True)
 
-# -------------------------
-# 💥 NEW: Prompt Generator Section (Phase 1)
+# -----------------------------------
+# NEW: Prompt Generator Section (Phase 1)
+
 st.markdown("---")
 st.header("✨ Want us to generate prompts for you?")
 
-generate_clicked = st.button("Generate Prompts for You")
+# Use session state to persist button click
+if "generate_clicked" not in st.session_state:
+    st.session_state.generate_clicked = False
 
-if generate_clicked:
+if st.button("Generate Prompts for You"):
+    st.session_state.generate_clicked = True
+
+if st.session_state.generate_clicked:
     with st.expander("Fill in your business details to generate prompts", expanded=True):
         business = st.text_input("Business nature (e.g., event tech, shoe brand):")
         location = st.text_input("Location (e.g., USA, Europe):")
@@ -103,7 +109,7 @@ if generate_clicked:
             else:
                 generated_prompts = generate_prompts(business, location, audience)
                 st.success(f"Generated {len(generated_prompts)} prompts!")
-                
+
                 for idx, prompt in enumerate(generated_prompts, 1):
                     st.write(f"{idx}. {prompt}")
 
