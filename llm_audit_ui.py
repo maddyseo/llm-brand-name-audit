@@ -66,13 +66,13 @@ if st.button("Run Audit"):
     st.success("Audit complete! ✅")
     st.dataframe(results, use_container_width=True)
 
-# -----------------------------------
-# NEW: Prompt Generator Section (Phase 1)
+# --------------------------
+# NEW: Prompt Generator (Phase 1) with new fields
 
 st.markdown("---")
 st.header("✨ Want us to generate prompts for you?")
 
-# Use session state to persist button click
+# Session state to keep expander open
 if "generate_clicked" not in st.session_state:
     st.session_state.generate_clicked = False
 
@@ -81,38 +81,54 @@ if st.button("Generate Prompts for You"):
 
 if st.session_state.generate_clicked:
     with st.expander("Fill in your business details to generate prompts", expanded=True):
-        business = st.text_input("Business nature (e.g., event tech, shoe brand):")
-        location = st.text_input("Location (e.g., USA, Europe):")
+        business_name = st.text_input("Business Name (e.g., Aspen Services):")
+        services_input = st.text_area("Services you offer (one per line):")
+        business_description = st.text_area("Tell us more about your business:")
+
+        location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
         audience = st.text_input("Target audience (optional):")
 
-        def generate_prompts(business, location, audience):
-            base_prompts = [
-                f"What’s the best {business} in {location}?",
-                f"Top-rated {business} companies in {location}",
-                f"Best alternatives to popular {business} solutions",
-                f"How does {business} help {audience} in {location}?",
-                f"What’s the future of {business} in {location}?",
-                f"Affordable {business} providers in {location}",
-                f"Top features to look for in {business} tools",
-                f"How to choose the right {business} for {audience}",
-                f"Reviews of {business} solutions in {location}",
-                f"Case studies of successful {business} implementations",
+        def generate_prompts(services, location):
+            locations = [location]
+            if "brisbane" in location.lower():
+                locations.extend(["Gold Coast", "Sunshine Coast", "Queensland"])
+
+            base_templates = [
+                "Best {service} services in {loc}",
+                "Affordable {service} companies near me in {loc}",
+                "Top-rated {service} providers in {loc}",
+                "Who provides {service} in {loc}",
+                "{service} reviews in {loc}",
+                "Where to find {service} in {loc}",
+                "Residential {service} experts in {loc}",
+                "Commercial {service} specialists in {loc}",
+                "Most recommended {service} company in {loc}",
+                "{service} for home owners in {loc}",
             ]
+
             prompts = []
             for _ in range(100):
-                prompts.append(random.choice(base_prompts))
+                service = random.choice(services)
+                loc = random.choice(locations)
+                template = random.choice(base_templates)
+                prompts.append(template.format(service=service.strip(), loc=loc.strip()))
             return prompts
 
         if st.button("Generate Prompts"):
-            if not business or not location:
-                st.warning("Please provide at least Business nature and Location.")
+            if not business_name or not services_input or not location:
+                st.warning("Please fill in Business Name, Services, and Location.")
             else:
-                generated_prompts = generate_prompts(business, location, audience)
-                st.success(f"Generated {len(generated_prompts)} prompts!")
+                # Parse services into list
+                services = [s.strip() for s in services_input.split("\n") if s.strip()]
+                if not services:
+                    st.warning("Please enter at least one service in the Services list.")
+                else:
+                    generated_prompts = generate_prompts(services, location)
+                    st.success(f"Generated {len(generated_prompts)} prompts!")
 
-                for idx, prompt in enumerate(generated_prompts, 1):
-                    st.write(f"{idx}. {prompt}")
+                    for idx, prompt in enumerate(generated_prompts, 1):
+                        st.write(f"{idx}. {prompt}")
 
-                prompts_text = "\n".join(generated_prompts)
-                st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
-                st.text_area("📋 Copy Prompts", prompts_text, height=300)
+                    prompts_text = "\n".join(generated_prompts)
+                    st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
+                    st.text_area("📋 Copy Prompts", prompts_text, height=300)
