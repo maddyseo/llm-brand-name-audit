@@ -17,42 +17,52 @@ st.markdown("""
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         color: white;
     }
-    .nav-button {
+    .stButton > button {
         display: block;
         width: 100%;
-        padding: 10px;
-        margin-bottom: 10px;
-        background-color: rgba(255, 255, 255, 0.1);
-        color: white;
-        text-align: center;
-        border-radius: 8px;
-        text-decoration: none;
+        padding: 10px 20px;
+        margin: 5px 0;
         font-weight: bold;
-    }
-    .nav-button-active {
-        background-color: rgba(255, 255, 255, 0.3);
-    }
-    .stButton button {
-        background-color: #4CAF50;
+        border-radius: 8px;
         color: white;
+        background-color: rgba(255,255,255,0.1);
+        border: none;
+    }
+    .stButton > button:hover {
+        background-color: rgba(255,255,255,0.3);
+    }
+    .stButton > button.active {
+        background-color: rgba(255,255,255,0.5);
+        color: black;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Sidebar navigation logic using session_state
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = 'Run Audit'
+# Handle page state
+if "page" not in st.session_state:
+    st.session_state.page = "Run Audit"
 
+# Sidebar navigation
 with st.sidebar:
     st.markdown("### Navigation")
-    run_audit_clicked = st.button("🏃‍♂️ Run Audit", key="run_audit_btn")
-    gen_prompts_clicked = st.button("✨ Generate Prompts", key="gen_prompts_btn")
 
-    # Change active page
-    if run_audit_clicked:
-        st.session_state.current_page = "Run Audit"
-    if gen_prompts_clicked:
-        st.session_state.current_page = "Generate Prompts"
+    # Create buttons with active styling
+    audit_clicked = st.button("🏃‍♂️ Run Audit", key="nav_audit")
+    prompts_clicked = st.button("✨ Generate Prompts", key="nav_prompts")
+
+    # Update session state if clicked
+    if audit_clicked:
+        st.session_state.page = "Run Audit"
+    if prompts_clicked:
+        st.session_state.page = "Generate Prompts"
+
+    # Dynamically apply "active" CSS class
+    st.markdown(f"""
+        <style>
+        [key="nav_audit"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Run Audit' else ''}
+        [key="nav_prompts"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Generate Prompts' else ''}
+        </style>
+    """, unsafe_allow_html=True)
 
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -64,9 +74,8 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# ----------------------
-# PAGE 1: RUN AUDIT
-if st.session_state.current_page == "Run Audit":
+# --- PAGE 1: RUN AUDIT ---
+if st.session_state.page == "Run Audit":
     st.title("LLM Brand Mention Audit - A Tool by Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
@@ -115,13 +124,12 @@ if st.session_state.current_page == "Run Audit":
         st.success("Audit complete! ✅")
         st.dataframe(results, use_container_width=True)
 
-# ----------------------
-# PAGE 2: GENERATE PROMPTS
-elif st.session_state.current_page == "Generate Prompts":
+# --- PAGE 2: GENERATE PROMPTS ---
+elif st.session_state.page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
 
     if "generate_clicked" not in st.session_state:
-        st.session_state.generate_clicked = True  # Keep expander open by default
+        st.session_state.generate_clicked = True
 
     with st.expander("Fill in your business details to generate prompts", expanded=st.session_state.generate_clicked):
         business_name = st.text_input("Business Name (e.g., Aspen Services):")
@@ -157,20 +165,20 @@ elif st.session_state.current_page == "Generate Prompts":
                 prompts.append(template.format(service=service.strip(), loc=loc.strip()))
             return prompts
 
-    if st.button("Generate Prompts"):
-        if not business_name or not services_input or not location:
-            st.warning("Please fill in Business Name, Services, and Location.")
-        else:
-            services = [s.strip() for s in services_input.split("\n") if s.strip()]
-            if not services:
-                st.warning("Please enter at least one service in the Services list.")
+        if st.button("Generate Prompts"):
+            if not business_name or not services_input or not location:
+                st.warning("Please fill in Business Name, Services, and Location.")
             else:
-                generated_prompts = generate_prompts(services, location, num_prompts)
-                st.success(f"Generated {len(generated_prompts)} prompts!")
+                services = [s.strip() for s in services_input.split("\n") if s.strip()]
+                if not services:
+                    st.warning("Please enter at least one service in the Services list.")
+                else:
+                    generated_prompts = generate_prompts(services, location, num_prompts)
+                    st.success(f"Generated {len(generated_prompts)} prompts!")
 
-                for idx, prompt in enumerate(generated_prompts, 1):
-                    st.write(f"{idx}. {prompt}")
+                    for idx, prompt in enumerate(generated_prompts, 1):
+                        st.write(f"{idx}. {prompt}")
 
-                prompts_text = "\n".join(generated_prompts)
-                st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
-                st.text_area("📋 Copy Prompts", prompts_text, height=300)
+                    prompts_text = "\n".join(generated_prompts)
+                    st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
+                    st.text_area("📋 Copy Prompts", prompts_text, height=300)
