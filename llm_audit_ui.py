@@ -17,11 +17,41 @@ st.markdown("""
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         color: white;
     }
+    .nav-link {
+        display: block;
+        padding: 10px 20px;
+        margin: 5px 0;
+        color: white;
+        font-weight: bold;
+        text-decoration: none;
+        border-radius: 8px;
+    }
+    .nav-link:hover {
+        background-color: rgba(255,255,255,0.2);
+    }
+    .nav-link.active {
+        background-color: rgba(255,255,255,0.4);
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Sidebar navigation
-page = st.sidebar.radio("Navigate", ["Run Audit", "Generate Prompts"])
+# --- Handle page state manually instead of radio ---
+if "page" not in st.session_state:
+    st.session_state.page = "Run Audit"
+
+# Sidebar custom navigation
+with st.sidebar:
+    st.markdown("### Navigation")
+    if st.button("🏃‍♂️ Run Audit", key="nav_audit"):
+        st.session_state.page = "Run Audit"
+    if st.button("✨ Generate Prompts", key="nav_prompts"):
+        st.session_state.page = "Generate Prompts"
+
+    # Render custom nav links (visual indicator)
+    st.markdown(f"""
+        <a href="#" class="nav-link {'active' if st.session_state.page == 'Run Audit' else ''}">🏃‍♂️ Run Audit</a>
+        <a href="#" class="nav-link {'active' if st.session_state.page == 'Generate Prompts' else ''}">✨ Generate Prompts</a>
+    """, unsafe_allow_html=True)
 
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -33,9 +63,8 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# ----------------------
-# PAGE 1: RUN AUDIT
-if page == "Run Audit":
+# --- PAGE 1: RUN AUDIT ---
+if st.session_state.page == "Run Audit":
     st.title("LLM Brand Mention Audit - A Tool by Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
@@ -84,13 +113,12 @@ if page == "Run Audit":
         st.success("Audit complete! ✅")
         st.dataframe(results, use_container_width=True)
 
-# ----------------------
-# PAGE 2: GENERATE PROMPTS
-elif page == "Generate Prompts":
+# --- PAGE 2: GENERATE PROMPTS ---
+elif st.session_state.page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
 
     if "generate_clicked" not in st.session_state:
-        st.session_state.generate_clicked = True  # Keep expander open by default
+        st.session_state.generate_clicked = True
 
     with st.expander("Fill in your business details to generate prompts", expanded=st.session_state.generate_clicked):
         business_name = st.text_input("Business Name (e.g., Aspen Services):")
