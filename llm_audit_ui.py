@@ -4,67 +4,37 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
 import json
+import random
 
-# --- Initialize OpenAI client ---
+# Inject custom CSS
+st.markdown("""
+    <style>
+    .main {
+        background-color: #ffffff;
+        color: #000000;
+    }
+    [data-testid="stSidebar"] {
+        background: linear-gradient(135deg, #6a11cb, #2575fc);
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Sidebar navigation
+page = st.sidebar.radio("Navigate", ["Run Audit", "Generate Prompts"])
+
+# Initialize OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# --- Google Sheets setup ---
+# Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_dict = st.secrets["google_service_account"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope)
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# --- Sidebar navigation ---
-st.markdown("""
-    <style>
-    .sidebar .sidebar-content {
-        background: linear-gradient(180deg, #7b2ff7, #3b8dff);
-        color: white;
-    }
-    .sidebar .sidebar-content a {
-        color: white;
-        font-weight: bold;
-        text-decoration: none;
-        display: block;
-        padding: 8px 16px;
-        margin: 4px 0;
-        border-radius: 8px;
-    }
-    .sidebar .sidebar-content a.active {
-        background-color: rgba(255,255,255,0.2);
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- Navigation ---
-page = st.sidebar.radio("Navigation", ["Run Audit", "Generate Prompts"], index=0)
-
-# --- Set active tab styling ---
-st.sidebar.markdown(
-    f"""
-    <a href="#" class="{ 'active' if page == 'Run Audit' else '' }">🏃‍♂️ Run Audit</a>
-    <a href="#" class="{ 'active' if page == 'Generate Prompts' else '' }">✨ Generate Prompts</a>
-    """,
-    unsafe_allow_html=True
-)
-
-# --- Main page background white ---
-st.markdown("""
-    <style>
-    .main {
-        background-color: white;
-        color: black;
-        padding: 2rem;
-    }
-    .stTextInput > div > input, .stTextArea > div > textarea {
-        background-color: white;
-        color: black;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- Run Audit Page ---
+# ----------------------
+# PAGE 1: RUN AUDIT
 if page == "Run Audit":
     st.title("LLM Brand Mention Audit - A Tool by Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
@@ -114,29 +84,61 @@ if page == "Run Audit":
         st.success("Audit complete! ✅")
         st.dataframe(results, use_container_width=True)
 
-# --- Generate Prompts Page ---
+# ----------------------
+# PAGE 2: GENERATE PROMPTS
 elif page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
-    with st.expander("Fill in your business details to generate prompts"):
+
+    if "generate_clicked" not in st.session_state:
+        st.session_state.generate_clicked = True  # Keep expander open by default
+
+    with st.expander("Fill in your business details to generate prompts", expanded=st.session_state.generate_clicked):
         business_name = st.text_input("Business Name (e.g., Aspen Services):")
-        services = st.text_area("Services you offer (one per line):")
-        description = st.text_area("Tell us more about your business:")
+        services_input = st.text_area("Services you offer (one per line):")
+        business_description = st.text_area("Tell us more about your business:")
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
         audience = st.text_input("Target audience (optional):")
 
-    if st.button("Generate Prompts"):
-        st.write("Generating prompts...")
-        prompts_list = []
-        if services:
-            for svc in services.split("\n"):
-                if svc.strip():
-                    prompts_list.append(f"Best {svc.strip()} services in {location}")
-                    prompts_list.append(f"{svc.strip()} companies in {location}")
-                    prompts_list.append(f"Top-rated {svc.strip()} providers near me")
-                    prompts_list.append(f"Affordable {svc.strip()} solutions in {location}")
-        else:
-            prompts_list.append(f"Best services in {location}")
+        def generate_prompts(services, location):
+            locations = [location]
+            if "brisbane" in location.lower():
+                locations.extend(["Gold Coast", "Sunshine Coast", "Queensland"])
 
-        st.write("Here are your prompts:")
-        for i, prompt in enumerate(prompts_list, 1):
-            st.write(f"{i}. {prompt}")
+            base_templates = [
+                "Best {service} services in {loc}",
+                "Affordable {service} companies near me in {loc}",
+                "Top-rated {service} providers in {loc}",
+                "Who provides {service} in {loc}",
+                "{service} reviews in {loc}",
+                "Where to find {service} in {loc}",
+                "Residential {service} experts in {loc}",
+                "Commercial {service} specialists in {loc}",
+                "Most recommended {service} company in {loc}",
+                "{service} for home owners in {loc}",
+            ]
+
+            prompts = []
+            for _ in range(100):
+                service = random.choice(services)
+                loc = random.choice(locations)
+                template = random.choice(base_templates)
+                prompts.append(template.format(service=service.strip(), loc=loc.strip()))
+            return prompts
+
+        if st.button("Generate Prompts"):
+            if not business_name or not services_input or not location:
+                st.warning("Please fill in Business Name, Services, and Location.")
+            else:
+                services = [s.strip() for s in services_input.split("\n") if s.strip()]
+                if not services:
+                    st.warning("Please enter at least one service in the Services list.")
+                else:
+                    generated_prompts = generate_prompts(services, location)
+                    st.success(f"Generated {len(generated_prompts)} prompts!")
+
+                    for idx, prompt in enumerate(generated_prompts, 1):
+                        st.write(f"{idx}. {prompt}")
+
+                    prompts_text = "\n".join(generated_prompts)
+                    st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
+                    st.text_area("📋 Copy Prompts", prompts_text, height=300)
