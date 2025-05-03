@@ -17,6 +17,21 @@ st.markdown("""
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         color: white;
     }
+    .nav-button {
+        display: block;
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 10px;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white;
+        text-align: center;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    .nav-button-active {
+        background-color: rgba(255, 255, 255, 0.3);
+    }
     .stButton button {
         background-color: #4CAF50;
         color: white;
@@ -24,8 +39,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Sidebar navigation
-page = st.sidebar.radio("Navigation", ["🏃‍♂️ Run Audit", "✨ Generate Prompts"])
+# Sidebar navigation logic using session_state
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 'Run Audit'
+
+with st.sidebar:
+    st.markdown("### Navigation")
+    run_audit_clicked = st.button("🏃‍♂️ Run Audit", key="run_audit_btn")
+    gen_prompts_clicked = st.button("✨ Generate Prompts", key="gen_prompts_btn")
+
+    # Change active page
+    if run_audit_clicked:
+        st.session_state.current_page = "Run Audit"
+    if gen_prompts_clicked:
+        st.session_state.current_page = "Generate Prompts"
 
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -39,7 +66,7 @@ sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
 # ----------------------
 # PAGE 1: RUN AUDIT
-if page == "🏃‍♂️ Run Audit":
+if st.session_state.current_page == "Run Audit":
     st.title("LLM Brand Mention Audit - A Tool by Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
@@ -90,7 +117,7 @@ if page == "🏃‍♂️ Run Audit":
 
 # ----------------------
 # PAGE 2: GENERATE PROMPTS
-elif page == "✨ Generate Prompts":
+elif st.session_state.current_page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
 
     if "generate_clicked" not in st.session_state:
