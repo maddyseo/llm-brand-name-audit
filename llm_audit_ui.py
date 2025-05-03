@@ -17,40 +17,51 @@ st.markdown("""
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         color: white;
     }
-    .nav-link {
+    .stButton > button {
         display: block;
+        width: 100%;
         padding: 10px 20px;
         margin: 5px 0;
-        color: white;
         font-weight: bold;
-        text-decoration: none;
         border-radius: 8px;
+        color: white;
+        background-color: rgba(255,255,255,0.1);
+        border: none;
     }
-    .nav-link:hover {
-        background-color: rgba(255,255,255,0.2);
+    .stButton > button:hover {
+        background-color: rgba(255,255,255,0.3);
     }
-    .nav-link.active {
-        background-color: rgba(255,255,255,0.4);
+    .stButton > button.active {
+        background-color: rgba(255,255,255,0.5);
+        color: black;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- Handle page state manually instead of radio ---
+# Handle page state
 if "page" not in st.session_state:
     st.session_state.page = "Run Audit"
 
-# Sidebar custom navigation
+# Sidebar navigation
 with st.sidebar:
     st.markdown("### Navigation")
-    if st.button("🏃‍♂️ Run Audit", key="nav_audit"):
+
+    # Create buttons with active styling
+    audit_clicked = st.button("🏃‍♂️ Run Audit", key="nav_audit")
+    prompts_clicked = st.button("✨ Generate Prompts", key="nav_prompts")
+
+    # Update session state if clicked
+    if audit_clicked:
         st.session_state.page = "Run Audit"
-    if st.button("✨ Generate Prompts", key="nav_prompts"):
+    if prompts_clicked:
         st.session_state.page = "Generate Prompts"
 
-    # Render custom nav links (visual indicator)
+    # Dynamically apply "active" CSS class
     st.markdown(f"""
-        <a href="#" class="nav-link {'active' if st.session_state.page == 'Run Audit' else ''}">🏃‍♂️ Run Audit</a>
-        <a href="#" class="nav-link {'active' if st.session_state.page == 'Generate Prompts' else ''}">✨ Generate Prompts</a>
+        <style>
+        [key="nav_audit"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Run Audit' else ''}
+        [key="nav_prompts"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Generate Prompts' else ''}
+        </style>
     """, unsafe_allow_html=True)
 
 # Initialize OpenAI client
