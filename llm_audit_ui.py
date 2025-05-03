@@ -1,73 +1,73 @@
-import openai
 import streamlit as st
+import openai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
-import json
 
-# --- CUSTOM CSS ---
-st.markdown("""
-    <style>
-        .main {
-            background-color: white;
-            color: black;
-        }
-        .stTextInput>div>div>input, .stTextArea>div>textarea {
-            background-color: white;
-            color: black;
-        }
-        .stButton>button {
-            background-color: black;
-            color: white;
-            border-radius: 8px;
-            padding: 8px 16px;
-        }
-        .sidebar .active-tab {
-            background: rgba(255, 255, 255, 0.2);
-            border-left: 4px solid white;
-            padding-left: 8px;
-            font-weight: bold;
-        }
-        .sidebar .inactive-tab {
-            opacity: 0.7;
-        }
-        .st-emotion-cache-1v0mbdj {
-            background: linear-gradient(to bottom, #6a11cb, #2575fc) !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# Initialize OpenAI client
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# --- SIDEBAR NAV ---
-st.sidebar.title("Navigation")
-
-tabs = ["Run Audit", "Generate Prompts"]
-active_tab = st.sidebar.radio("",
-                              tabs,
-                              label_visibility="collapsed",
-                              index=0)
-
-# --- Highlight active tab ---
-for i, tab in enumerate(tabs):
-    if tab == active_tab:
-        st.sidebar.markdown(f"<div class='active-tab'>{tab}</div>", unsafe_allow_html=True)
-    else:
-        st.sidebar.markdown(f"<div class='inactive-tab'>{tab}</div>", unsafe_allow_html=True)
-
-# --- GOOGLE SHEETS SETUP ---
+# Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_dict = st.secrets["google_service_account"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope)
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# --- OPENAI CLIENT ---
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# --- Sidebar Styling ---
+st.markdown(
+    """
+    <style>
+    .css-1544g2n { background: linear-gradient(to bottom, #7b2ff7, #00c6ff); }
+    .stButton > button {
+        width: 100%;
+        margin-bottom: 10px;
+        background-color: white;
+        color: black;
+        border-radius: 8px;
+        border: none;
+        padding: 0.5rem;
+        font-weight: bold;
+    }
+    .stButton > button:hover {
+        background-color: #f0f0f0;
+    }
+    .active-button {
+        background-color: #333 !important;
+        color: white !important;
+    }
+    .main { background-color: white; }
+    .stTextInput input, .stTextArea textarea {
+        background-color: white;
+        color: black;
+    }
+    .stMarkdown { color: black; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-# --- TAB LOGIC ---
-if active_tab == "Run Audit":
+# --- Sidebar navigation ---
+selected_tab = st.sidebar.radio(
+    "Navigation",
+    ["Run Audit", "Generate Prompts"],
+    index=0,
+    format_func=lambda x: f"✨ {x}" if x == "Generate Prompts" else f"🏃 {x}"
+)
+
+# Make sidebar buttons styled
+if selected_tab == "Run Audit":
+    st.sidebar.markdown('<div class="active-button">🏃 Run Audit</div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div>✨ Generate Prompts</div>', unsafe_allow_html=True)
+else:
+    st.sidebar.markdown('<div>🏃 Run Audit</div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div class="active-button">✨ Generate Prompts</div>', unsafe_allow_html=True)
+
+# --- Main content ---
+if selected_tab == "Run Audit":
     st.title("LLM Brand Mention Audit - A Tool by Maddy")
-    st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
-
+    st.write("Enter prompts to check if your brand appears in ChatGPT's responses.")
+    
     default_prompts = [
         "What’s the best shoe brand in USA",
         "What's most comfortable shoe you can recommend",
@@ -84,6 +84,7 @@ if active_tab == "Run Audit":
         st.write("Running audits...")
 
         results = []
+
         for prompt in prompt_list:
             if not prompt.strip():
                 continue
@@ -97,10 +98,13 @@ if active_tab == "Run Audit":
                 )
                 reply = response.choices[0].message.content
                 mentioned = brand.lower() in reply.lower()
+
                 results.append([prompt, brand, "Yes" if mentioned else "No"])
+
             except Exception as e:
                 results.append([prompt, brand, f"Error: {str(e)}"])
 
+        # Update Google Sheet
         sheet.clear()
         sheet.append_row(["Prompt", "Brand", "Mentioned?"])
         for row in results:
@@ -109,27 +113,23 @@ if active_tab == "Run Audit":
         st.success("Audit complete! ✅")
         st.dataframe(results, use_container_width=True)
 
-elif active_tab == "Generate Prompts":
+elif selected_tab == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
     with st.expander("Fill in your business details to generate prompts"):
         business_name = st.text_input("Business Name (e.g., Aspen Services):")
         services = st.text_area("Services you offer (one per line):")
         business_nature = st.text_area("Tell us more about your business:")
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
-        target_audience = st.text_input("Target audience (optional):")
+        audience = st.text_input("Target audience (optional):")
 
     if st.button("Generate Prompts"):
-        generated_prompts = []
-        for service in services.split("\n"):
-            service = service.strip()
-            if service:
-                generated_prompts.extend([
-                    f"Best {service} companies in {location}",
-                    f"Affordable {service} services near me",
-                    f"Top-rated {service} providers in {location}",
-                    f"Popular {service} businesses in {location}",
-                    f"Where to find trusted {service} experts in {location}"
-                ])
-        st.markdown("#### Generated Prompts:")
-        for i, prompt in enumerate(generated_prompts, start=1):
-            st.write(f"{i}. {prompt}")
+        st.write("Generated Prompts:")
+        prompts = []
+        service_lines = services.split("\n")
+        for service in service_lines:
+            if service.strip():
+                prompts.append(f"Best {service.strip()} in {location}")
+                prompts.append(f"{service.strip()} companies in {location}")
+                prompts.append(f"Affordable {service.strip()} services in {location}")
+        for p in prompts:
+            st.write(f"- {p}")
