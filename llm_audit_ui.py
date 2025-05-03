@@ -6,6 +6,23 @@ import os
 import json
 import random
 
+# Inject custom CSS
+st.markdown("""
+    <style>
+    .main {
+        background-color: #ffffff;
+        color: #000000;
+    }
+    [data-testid="stSidebar"] {
+        background: linear-gradient(135deg, #6a11cb, #2575fc);
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Sidebar navigation
+page = st.sidebar.radio("Navigate", ["Run Audit", "Generate Prompts"])
+
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -16,75 +33,69 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# Streamlit UI
-st.title("LLM Brand Mention Audit - A Tool by Maddy")
-st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
+# ----------------------
+# PAGE 1: RUN AUDIT
+if page == "Run Audit":
+    st.title("LLM Brand Mention Audit - A Tool by Maddy")
+    st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
-# Default prompts
-default_prompts = [
-    "What’s the best shoe brand in USA",
-    "What's most comfortable shoe you can recommend",
-    "Best Addidas alternative",
-    "Shoes suitable for running",
-    "Top 3 shoe brands in USA"
-]
+    default_prompts = [
+        "What’s the best shoe brand in USA",
+        "What's most comfortable shoe you can recommend",
+        "Best Addidas alternative",
+        "Shoes suitable for running",
+        "Top 3 shoe brands in USA"
+    ]
 
-prompts = st.text_area("Enter one prompt per line:", value="\n".join(default_prompts))
-brand = st.text_input("Brand name to track (e.g., Nike):", value="Nike")
+    prompts = st.text_area("Enter one prompt per line:", value="\n".join(default_prompts))
+    brand = st.text_input("Brand name to track (e.g., Nike):", value="Nike")
 
-if st.button("Run Audit"):
-    prompt_list = prompts.split("\n")
-    st.write("Running audits...")
+    if st.button("Run Audit"):
+        prompt_list = prompts.split("\n")
+        st.write("Running audits...")
 
-    results = []
+        results = []
 
-    for prompt in prompt_list:
-        if not prompt.strip():
-            continue
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            reply = response.choices[0].message.content
-            mentioned = brand.lower() in reply.lower()
+        for prompt in prompt_list:
+            if not prompt.strip():
+                continue
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                reply = response.choices[0].message.content
+                mentioned = brand.lower() in reply.lower()
 
-            results.append([prompt, brand, "Yes" if mentioned else "No"])
+                results.append([prompt, brand, "Yes" if mentioned else "No"])
 
-        except Exception as e:
-            results.append([prompt, brand, f"Error: {str(e)}"])
+            except Exception as e:
+                results.append([prompt, brand, f"Error: {str(e)}"])
 
-    # Update Google Sheet
-    sheet.clear()
-    sheet.append_row(["Prompt", "Brand", "Mentioned?"])
-    for row in results:
-        sheet.append_row(row)
+        # Update Google Sheet
+        sheet.clear()
+        sheet.append_row(["Prompt", "Brand", "Mentioned?"])
+        for row in results:
+            sheet.append_row(row)
 
-    st.success("Audit complete! ✅")
-    st.dataframe(results, use_container_width=True)
+        st.success("Audit complete! ✅")
+        st.dataframe(results, use_container_width=True)
 
-# --------------------------
-# NEW: Prompt Generator (Phase 1) with new fields
+# ----------------------
+# PAGE 2: GENERATE PROMPTS
+elif page == "Generate Prompts":
+    st.title("✨ Generate Prompts for Your Business")
 
-st.markdown("---")
-st.header("✨ Want us to generate prompts for you?")
+    if "generate_clicked" not in st.session_state:
+        st.session_state.generate_clicked = True  # Keep expander open by default
 
-# Session state to keep expander open
-if "generate_clicked" not in st.session_state:
-    st.session_state.generate_clicked = False
-
-if st.button("Generate Prompts for You"):
-    st.session_state.generate_clicked = True
-
-if st.session_state.generate_clicked:
-    with st.expander("Fill in your business details to generate prompts", expanded=True):
+    with st.expander("Fill in your business details to generate prompts", expanded=st.session_state.generate_clicked):
         business_name = st.text_input("Business Name (e.g., Aspen Services):")
         services_input = st.text_area("Services you offer (one per line):")
         business_description = st.text_area("Tell us more about your business:")
-
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
         audience = st.text_input("Target audience (optional):")
 
@@ -118,7 +129,6 @@ if st.session_state.generate_clicked:
             if not business_name or not services_input or not location:
                 st.warning("Please fill in Business Name, Services, and Location.")
             else:
-                # Parse services into list
                 services = [s.strip() for s in services_input.split("\n") if s.strip()]
                 if not services:
                     st.warning("Please enter at least one service in the Services list.")
