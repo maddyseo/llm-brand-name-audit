@@ -5,33 +5,49 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os
 import json
 import random
-from datetime import datetime
 import pandas as pd
+from datetime import datetime
 
-# Inject custom CSS
+# --- CSS ---
 st.markdown("""
     <style>
-    .main { background-color: #ffffff; color: #000000; }
-    [data-testid="stSidebar"] { background: linear-gradient(135deg, #6a11cb, #2575fc); color: white; }
-    .stButton > button {
-        display: block; width: 100%; padding: 10px 20px; margin: 5px 0;
-        font-weight: bold; border-radius: 8px; color: white;
-        background-color: rgba(255,255,255,0.1); border: none;
+    .main {
+        background-color: #ffffff;
+        color: #000000;
     }
-    .stButton > button:hover { background-color: rgba(255,255,255,0.3); }
-    .stButton > button.active { background-color: rgba(255,255,255,0.5); color: black; }
+    [data-testid="stSidebar"] {
+        background: linear-gradient(135deg, #6a11cb, #2575fc);
+        color: white;
+    }
+    .stButton > button {
+        display: block;
+        width: 100%;
+        padding: 10px 20px;
+        margin: 5px 0;
+        font-weight: bold;
+        border-radius: 8px;
+        color: white;
+        background-color: rgba(255,255,255,0.1);
+        border: none;
+    }
+    .stButton > button:hover {
+        background-color: rgba(255,255,255,0.3);
+    }
+    .stButton > button.active {
+        background-color: rgba(255,255,255,0.5);
+        color: black;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Session state setup
+# --- Page state ---
 if "page" not in st.session_state:
     st.session_state.page = "Run Audit"
+
 if "saved_prompts" not in st.session_state:
     st.session_state.saved_prompts = []
-if "audit_results" not in st.session_state:
-    st.session_state.audit_results = []
 
-# Sidebar navigation
+# --- Sidebar Navigation ---
 with st.sidebar:
     st.markdown("### Navigation")
 
@@ -54,19 +70,19 @@ with st.sidebar:
         </style>
     """, unsafe_allow_html=True)
 
-# OpenAI client
+# --- OpenAI client ---
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Google Sheets setup
+# --- Google Sheets ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_dict = st.secrets["google_service_account"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope)
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# ------------------ PAGE 1: RUN AUDIT ------------------
+# --- RUN AUDIT PAGE ---
 if st.session_state.page == "Run Audit":
-    st.title("LLM Brand Mention Audit - A Tool by Maddy")
+    st.title("Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
     default_prompts = [
@@ -80,10 +96,12 @@ if st.session_state.page == "Run Audit":
     prompts = st.text_area("Enter one prompt per line:", value="\n".join(default_prompts))
     brand = st.text_input("Brand name to track (e.g., Nike):", value="Nike")
 
+    audit_results = []
+
     if st.button("Run Audit"):
         prompt_list = prompts.split("\n")
         st.write("Running audits...")
-        results = []
+
         for prompt in prompt_list:
             if not prompt.strip():
                 continue
@@ -97,57 +115,44 @@ if st.session_state.page == "Run Audit":
                 )
                 reply = response.choices[0].message.content
                 mentioned = brand.lower() in reply.lower()
-                results.append({
-                    "Prompt": prompt,
-                    "Brand": brand,
-                    "Mentioned": "Yes" if mentioned else "No"
-                })
+                audit_results.append({"Prompt": prompt, "Brand": brand, "Mentioned": "Yes" if mentioned else "No"})
             except Exception as e:
-                results.append({
-                    "Prompt": prompt,
-                    "Brand": brand,
-                    "Mentioned": f"Error: {str(e)}"
-                })
-        st.session_state.audit_results = results
+                audit_results.append({"Prompt": prompt, "Brand": brand, "Mentioned": f"Error: {str(e)}"})
 
-    if st.session_state.audit_results:
-        df = pd.DataFrame(st.session_state.audit_results)
-        st.markdown("### Audit Results")
+        df = pd.DataFrame(audit_results)
+        st.write("Running audits...")
+        st.dataframe(df, use_container_width=True)
+
+        csv_data = df.to_csv(index=False).encode("utf-8")
+        st.download_button("📥 Download Audit Results (.csv)", csv_data, file_name="audit_results.csv")
+
+        st.subheader("Save individual prompts:")
         for idx, row in df.iterrows():
-            col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
-            col1.write(row["Prompt"])
-            col2.write(row["Brand"])
-            col3.write(row["Mentioned"])
-            if col4.button("💾 Save", key=f"save_{idx}"):
+            cols = st.columns([6,1])
+            cols[0].markdown(f"**{row['Prompt']} ➔ Mentioned: {row['Mentioned']}**")
+            if cols[1].button("💾 Save", key=f"save_{idx}"):
                 if len(st.session_state.saved_prompts) < 100:
                     st.session_state.saved_prompts.append({
                         "Prompt": row["Prompt"],
                         "Result": row["Mentioned"],
                         "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
                     })
-                    st.success(f"Prompt saved! ({len(st.session_state.saved_prompts)}/100)")
+                    st.success("Prompt saved!")
                 else:
-                    st.warning("Reached maximum of 100 saved prompts.")
+                    st.warning("You reached 100 saved prompts limit.")
 
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Audit Results (.csv)", data=csv, file_name="audit_results.csv")
-
-# ------------------ PAGE 2: GENERATE PROMPTS ------------------
+# --- GENERATE PROMPTS PAGE ---
 elif st.session_state.page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
-
     if "generate_clicked" not in st.session_state:
         st.session_state.generate_clicked = True
-
     with st.expander("Fill in your business details to generate prompts", expanded=st.session_state.generate_clicked):
         business_name = st.text_input("Business Name (e.g., Aspen Services):")
         services_input = st.text_area("Services you offer (one per line):")
-        business_description = st.text_area("Tell us more about your business:")
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
-        audience = st.text_input("Target audience (optional):")
-        num_prompts = st.number_input("How many prompts to generate? (1-100)", min_value=1, max_value=100, value=10)
+        prompt_count = st.number_input("How many prompts to generate (1-100):", min_value=1, max_value=100, value=10)
 
-        def generate_prompts(services, location, num):
+        def generate_prompts(services, location, count):
             locations = [location]
             if "brisbane" in location.lower():
                 locations.extend(["Gold Coast", "Sunshine Coast", "Queensland"])
@@ -164,7 +169,7 @@ elif st.session_state.page == "Generate Prompts":
                 "{service} for home owners in {loc}",
             ]
             prompts = []
-            for _ in range(num):
+            for _ in range(count):
                 service = random.choice(services)
                 loc = random.choice(locations)
                 template = random.choice(base_templates)
@@ -177,9 +182,9 @@ elif st.session_state.page == "Generate Prompts":
             else:
                 services = [s.strip() for s in services_input.split("\n") if s.strip()]
                 if not services:
-                    st.warning("Please enter at least one service.")
+                    st.warning("Please enter at least one service in the Services list.")
                 else:
-                    generated_prompts = generate_prompts(services, location, num_prompts)
+                    generated_prompts = generate_prompts(services, location, prompt_count)
                     st.success(f"Generated {len(generated_prompts)} prompts!")
                     for idx, prompt in enumerate(generated_prompts, 1):
                         st.write(f"{idx}. {prompt}")
@@ -187,18 +192,20 @@ elif st.session_state.page == "Generate Prompts":
                     st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
                     st.text_area("📋 Copy Prompts", prompts_text, height=300)
 
-# ------------------ PAGE 3: SAVED PROMPTS ------------------
+# --- SAVED PROMPTS PAGE ---
 elif st.session_state.page == "Saved Prompts":
     st.title("💾 Saved Prompts")
     st.markdown(f"**{len(st.session_state.saved_prompts)}/100 prompts saved**")
 
     if st.session_state.saved_prompts:
-        saved_df = pd.DataFrame(st.session_state.saved_prompts)
-        st.dataframe(saved_df, use_container_width=True)
-
-        for idx in range(len(saved_df)):
-            if st.button("❌ Delete", key=f"delete_{idx}"):
+        for idx, row in enumerate(st.session_state.saved_prompts):
+            col1, col2, col3, col4 = st.columns([4, 1, 2, 1])
+            col1.write(row["Prompt"])
+            col2.write(row["Result"])
+            col3.write(row["Date Saved"])
+            if col4.button("❌", key=f"delete_{idx}"):
                 st.session_state.saved_prompts.pop(idx)
+                st.success("Prompt deleted!")
                 st.experimental_rerun()
     else:
         st.info("No saved prompts yet.")
