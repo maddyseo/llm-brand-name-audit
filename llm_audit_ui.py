@@ -42,25 +42,29 @@ st.markdown("""
 if "page" not in st.session_state:
     st.session_state.page = "Run Audit"
 
+if "saved_prompts" not in st.session_state:
+    st.session_state.saved_prompts = []
+
 # Sidebar navigation
 with st.sidebar:
     st.markdown("### Navigation")
 
-    # Create buttons with active styling
     audit_clicked = st.button("🏃‍♂️ Run Audit", key="nav_audit")
     prompts_clicked = st.button("✨ Generate Prompts", key="nav_prompts")
+    saved_clicked = st.button("💾 Saved Prompts", key="nav_saved")
 
-    # Update session state if clicked
     if audit_clicked:
         st.session_state.page = "Run Audit"
     if prompts_clicked:
         st.session_state.page = "Generate Prompts"
+    if saved_clicked:
+        st.session_state.page = "Saved Prompts"
 
-    # Dynamically apply "active" CSS class
     st.markdown(f"""
         <style>
         [key="nav_audit"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Run Audit' else ''}
         [key="nav_prompts"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Generate Prompts' else ''}
+        [key="nav_saved"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Saved Prompts' else ''}
         </style>
     """, unsafe_allow_html=True)
 
@@ -74,7 +78,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# --- PAGE 1: RUN AUDIT ---
+# --- PAGE: RUN AUDIT ---
 if st.session_state.page == "Run Audit":
     st.title("LLM Brand Mention Audit - A Tool by Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
@@ -95,7 +99,6 @@ if st.session_state.page == "Run Audit":
         st.write("Running audits...")
 
         results = []
-
         for prompt in prompt_list:
             if not prompt.strip():
                 continue
@@ -109,22 +112,38 @@ if st.session_state.page == "Run Audit":
                 )
                 reply = response.choices[0].message.content
                 mentioned = brand.lower() in reply.lower()
-
-                results.append([prompt, brand, "Yes" if mentioned else "No"])
-
+                results.append({"prompt": prompt, "brand": brand, "mentioned": "Yes" if mentioned else "No"})
             except Exception as e:
-                results.append([prompt, brand, f"Error: {str(e)}"])
+                results.append({"prompt": prompt, "brand": brand, "mentioned": f"Error: {str(e)}"})
 
-        # Update Google Sheet
         sheet.clear()
         sheet.append_row(["Prompt", "Brand", "Mentioned?"])
         for row in results:
-            sheet.append_row(row)
+            sheet.append_row([row["prompt"], row["brand"], row["mentioned"]])
 
         st.success("Audit complete! ✅")
-        st.dataframe(results, use_container_width=True)
 
-# --- PAGE 2: GENERATE PROMPTS ---
+        for idx, row in enumerate(results):
+            col1, col2 = st.columns([0.85, 0.15])
+            col1.write(f"**Prompt {idx+1}:** {row['prompt']} → Mentioned: {row['mentioned']}")
+            if col2.button("Save", key=f"save_{idx}"):
+                if len(st.session_state.saved_prompts) >= 100:
+                    st.warning("Cannot save: Maximum of 100 prompts reached.")
+                else:
+                    st.session_state.saved_prompts.append(row["prompt"])
+                    st.success(f"Saved Prompt {idx+1} ✅")
+
+        if st.button("💾 Save All Prompts"):
+            remaining_slots = 100 - len(st.session_state.saved_prompts)
+            unsaved_prompts = [r["prompt"] for r in results if r["prompt"] not in st.session_state.saved_prompts]
+            to_save = unsaved_prompts[:remaining_slots]
+            st.session_state.saved_prompts.extend(to_save)
+            if len(unsaved_prompts) > remaining_slots:
+                st.warning("Only some prompts were saved (max 100 reached).")
+            else:
+                st.success("All prompts saved!")
+
+# --- PAGE: GENERATE PROMPTS ---
 elif st.session_state.page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
 
@@ -137,9 +156,8 @@ elif st.session_state.page == "Generate Prompts":
         business_description = st.text_area("Tell us more about your business:")
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
         audience = st.text_input("Target audience (optional):")
-        num_prompts = st.number_input("Number of prompts to generate (1-100):", min_value=1, max_value=100, value=20, step=1)
 
-        def generate_prompts(services, location, num_prompts):
+        def generate_prompts(services, location):
             locations = [location]
             if "brisbane" in location.lower():
                 locations.extend(["Gold Coast", "Sunshine Coast", "Queensland"])
@@ -158,7 +176,7 @@ elif st.session_state.page == "Generate Prompts":
             ]
 
             prompts = []
-            for _ in range(num_prompts):
+            for _ in range(100):
                 service = random.choice(services)
                 loc = random.choice(locations)
                 template = random.choice(base_templates)
@@ -173,7 +191,7 @@ elif st.session_state.page == "Generate Prompts":
                 if not services:
                     st.warning("Please enter at least one service in the Services list.")
                 else:
-                    generated_prompts = generate_prompts(services, location, num_prompts)
+                    generated_prompts = generate_prompts(services, location)
                     st.success(f"Generated {len(generated_prompts)} prompts!")
 
                     for idx, prompt in enumerate(generated_prompts, 1):
@@ -182,3 +200,18 @@ elif st.session_state.page == "Generate Prompts":
                     prompts_text = "\n".join(generated_prompts)
                     st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
                     st.text_area("📋 Copy Prompts", prompts_text, height=300)
+
+# --- PAGE: SAVED PROMPTS ---
+elif st.session_state.page == "Saved Prompts":
+    st.title("💾 Saved Prompts")
+    st.write(f"**{len(st.session_state.saved_prompts)}/100 prompts saved**")
+
+    if st.session_state.saved_prompts:
+        for idx, prompt in enumerate(st.session_state.saved_prompts):
+            col1, col2 = st.columns([0.9, 0.1])
+            col1.write(f"{idx+1}. {prompt}")
+            if col2.button("❌", key=f"del_{idx}"):
+                st.session_state.saved_prompts.pop(idx)
+                st.experimental_rerun()
+    else:
+        st.info("No saved prompts yet.")
