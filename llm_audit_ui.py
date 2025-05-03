@@ -11,32 +11,15 @@ import pandas as pd
 # Inject custom CSS
 st.markdown("""
     <style>
-    .main {
-        background-color: #ffffff;
-        color: #000000;
-    }
-    [data-testid="stSidebar"] {
-        background: linear-gradient(135deg, #6a11cb, #2575fc);
-        color: white;
-    }
+    .main { background-color: #ffffff; color: #000000; }
+    [data-testid="stSidebar"] { background: linear-gradient(135deg, #6a11cb, #2575fc); color: white; }
     .stButton > button {
-        display: block;
-        width: 100%;
-        padding: 10px 20px;
-        margin: 5px 0;
-        font-weight: bold;
-        border-radius: 8px;
-        color: white;
-        background-color: rgba(255,255,255,0.1);
-        border: none;
+        display: block; width: 100%; padding: 10px 20px; margin: 5px 0;
+        font-weight: bold; border-radius: 8px; color: white;
+        background-color: rgba(255,255,255,0.1); border: none;
     }
-    .stButton > button:hover {
-        background-color: rgba(255,255,255,0.3);
-    }
-    .stButton > button.active {
-        background-color: rgba(255,255,255,0.5);
-        color: black;
-    }
+    .stButton > button:hover { background-color: rgba(255,255,255,0.3); }
+    .stButton > button.active { background-color: rgba(255,255,255,0.5); color: black; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -45,6 +28,8 @@ if "page" not in st.session_state:
     st.session_state.page = "Run Audit"
 if "saved_prompts" not in st.session_state:
     st.session_state.saved_prompts = []
+if "audit_results" not in st.session_state:
+    st.session_state.audit_results = []
 
 # Sidebar navigation
 with st.sidebar:
@@ -98,7 +83,6 @@ if st.session_state.page == "Run Audit":
     if st.button("Run Audit"):
         prompt_list = prompts.split("\n")
         st.write("Running audits...")
-
         results = []
         for prompt in prompt_list:
             if not prompt.strip():
@@ -113,30 +97,40 @@ if st.session_state.page == "Run Audit":
                 )
                 reply = response.choices[0].message.content
                 mentioned = brand.lower() in reply.lower()
-                results.append({"Prompt": prompt, "Brand": brand, "Mentioned": "Yes" if mentioned else "No"})
+                results.append({
+                    "Prompt": prompt,
+                    "Brand": brand,
+                    "Mentioned": "Yes" if mentioned else "No"
+                })
             except Exception as e:
-                results.append({"Prompt": prompt, "Brand": brand, "Mentioned": f"Error: {str(e)}"})
+                results.append({
+                    "Prompt": prompt,
+                    "Brand": brand,
+                    "Mentioned": f"Error: {str(e)}"
+                })
+        st.session_state.audit_results = results
 
-        df = pd.DataFrame(results)
-        st.dataframe(df, use_container_width=True)
-
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Audit Results (.csv)", data=csv, file_name="audit_results.csv")
-
-        st.markdown("### Save individual prompts:")
+    if st.session_state.audit_results:
+        df = pd.DataFrame(st.session_state.audit_results)
+        st.markdown("### Audit Results")
         for idx, row in df.iterrows():
-            col1, col2 = st.columns([6,1])
-            col1.write(f"**{row['Prompt']} ➔ Mentioned: {row['Mentioned']}**")
-            if col2.button("💾 Save", key=f"save_{idx}"):
+            col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
+            col1.write(row["Prompt"])
+            col2.write(row["Brand"])
+            col3.write(row["Mentioned"])
+            if col4.button("💾 Save", key=f"save_{idx}"):
                 if len(st.session_state.saved_prompts) < 100:
                     st.session_state.saved_prompts.append({
-                        "Prompt": row['Prompt'],
-                        "Result": row['Mentioned'],
+                        "Prompt": row["Prompt"],
+                        "Result": row["Mentioned"],
                         "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
                     })
                     st.success(f"Prompt saved! ({len(st.session_state.saved_prompts)}/100)")
                 else:
                     st.warning("Reached maximum of 100 saved prompts.")
+
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download Audit Results (.csv)", data=csv, file_name="audit_results.csv")
 
 # ------------------ PAGE 2: GENERATE PROMPTS ------------------
 elif st.session_state.page == "Generate Prompts":
@@ -199,18 +193,11 @@ elif st.session_state.page == "Saved Prompts":
     st.markdown(f"**{len(st.session_state.saved_prompts)}/100 prompts saved**")
 
     if st.session_state.saved_prompts:
-        col1, col2, col3, col4 = st.columns([4, 1, 2, 1])
-        col1.markdown("**Prompt**")
-        col2.markdown("**Result**")
-        col3.markdown("**Date Saved**")
-        col4.markdown("**Delete**")
+        saved_df = pd.DataFrame(st.session_state.saved_prompts)
+        st.dataframe(saved_df, use_container_width=True)
 
-        for idx, row in enumerate(st.session_state.saved_prompts):
-            col1, col2, col3, col4 = st.columns([4, 1, 2, 1])
-            col1.write(row["Prompt"])
-            col2.write(row["Result"])
-            col3.write(row["Date Saved"])
-            if col4.button("❌", key=f"delete_{idx}"):
+        for idx in range(len(saved_df)):
+            if st.button("❌ Delete", key=f"delete_{idx}"):
                 st.session_state.saved_prompts.pop(idx)
                 st.experimental_rerun()
     else:
