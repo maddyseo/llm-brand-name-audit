@@ -4,8 +4,9 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
 import json
+import random
 
-# Initialize OpenAI client (v1.0+ syntax)
+# Initialize OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Google Sheets setup
@@ -15,7 +16,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# Streamlit UI
+# --- Streamlit UI ---
 st.title("LLM Brand Mention Audit - A Tool by Maddy")
 st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
@@ -64,3 +65,48 @@ if st.button("Run Audit"):
 
     st.success("Audit complete! ✅")
     st.dataframe(results, use_container_width=True)
+
+# -------------------------
+# 💥 NEW: Prompt Generator Section (Phase 1)
+st.markdown("---")
+st.header("✨ Want us to generate prompts for you?")
+
+generate_clicked = st.button("Generate Prompts for You")
+
+if generate_clicked:
+    with st.expander("Fill in your business details to generate prompts", expanded=True):
+        business = st.text_input("Business nature (e.g., event tech, shoe brand):")
+        location = st.text_input("Location (e.g., USA, Europe):")
+        audience = st.text_input("Target audience (optional):")
+
+        def generate_prompts(business, location, audience):
+            base_prompts = [
+                f"What’s the best {business} in {location}?",
+                f"Top-rated {business} companies in {location}",
+                f"Best alternatives to popular {business} solutions",
+                f"How does {business} help {audience} in {location}?",
+                f"What’s the future of {business} in {location}?",
+                f"Affordable {business} providers in {location}",
+                f"Top features to look for in {business} tools",
+                f"How to choose the right {business} for {audience}",
+                f"Reviews of {business} solutions in {location}",
+                f"Case studies of successful {business} implementations",
+            ]
+            prompts = []
+            for _ in range(100):
+                prompts.append(random.choice(base_prompts))
+            return prompts
+
+        if st.button("Generate Prompts"):
+            if not business or not location:
+                st.warning("Please provide at least Business nature and Location.")
+            else:
+                generated_prompts = generate_prompts(business, location, audience)
+                st.success(f"Generated {len(generated_prompts)} prompts!")
+                
+                for idx, prompt in enumerate(generated_prompts, 1):
+                    st.write(f"{idx}. {prompt}")
+
+                prompts_text = "\n".join(generated_prompts)
+                st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
+                st.text_area("📋 Copy Prompts", prompts_text, height=300)
