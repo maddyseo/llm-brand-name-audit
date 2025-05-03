@@ -17,52 +17,15 @@ st.markdown("""
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         color: white;
     }
-    .stButton > button {
-        display: block;
-        width: 100%;
-        padding: 10px 20px;
-        margin: 5px 0;
-        font-weight: bold;
-        border-radius: 8px;
+    .stButton button {
+        background-color: #4CAF50;
         color: white;
-        background-color: rgba(255,255,255,0.1);
-        border: none;
-    }
-    .stButton > button:hover {
-        background-color: rgba(255,255,255,0.3);
-    }
-    .stButton > button.active {
-        background-color: rgba(255,255,255,0.5);
-        color: black;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Handle page state
-if "page" not in st.session_state:
-    st.session_state.page = "Run Audit"
-
 # Sidebar navigation
-with st.sidebar:
-    st.markdown("### Navigation")
-
-    # Create buttons with active styling
-    audit_clicked = st.button("🏃‍♂️ Run Audit", key="nav_audit")
-    prompts_clicked = st.button("✨ Generate Prompts", key="nav_prompts")
-
-    # Update session state if clicked
-    if audit_clicked:
-        st.session_state.page = "Run Audit"
-    if prompts_clicked:
-        st.session_state.page = "Generate Prompts"
-
-    # Dynamically apply "active" CSS class
-    st.markdown(f"""
-        <style>
-        [key="nav_audit"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Run Audit' else ''}
-        [key="nav_prompts"] > button {'{ background-color: rgba(255,255,255,0.5); color: black; }' if st.session_state.page == 'Generate Prompts' else ''}
-        </style>
-    """, unsafe_allow_html=True)
+page = st.sidebar.radio("Navigation", ["🏃‍♂️ Run Audit", "✨ Generate Prompts"])
 
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -74,8 +37,9 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(creds_dict), scope
 client_gs = gspread.authorize(creds)
 sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 
-# --- PAGE 1: RUN AUDIT ---
-if st.session_state.page == "Run Audit":
+# ----------------------
+# PAGE 1: RUN AUDIT
+if page == "🏃‍♂️ Run Audit":
     st.title("LLM Brand Mention Audit - A Tool by Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
 
@@ -124,12 +88,13 @@ if st.session_state.page == "Run Audit":
         st.success("Audit complete! ✅")
         st.dataframe(results, use_container_width=True)
 
-# --- PAGE 2: GENERATE PROMPTS ---
-elif st.session_state.page == "Generate Prompts":
+# ----------------------
+# PAGE 2: GENERATE PROMPTS
+elif page == "✨ Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
 
     if "generate_clicked" not in st.session_state:
-        st.session_state.generate_clicked = True
+        st.session_state.generate_clicked = True  # Keep expander open by default
 
     with st.expander("Fill in your business details to generate prompts", expanded=st.session_state.generate_clicked):
         business_name = st.text_input("Business Name (e.g., Aspen Services):")
@@ -137,8 +102,9 @@ elif st.session_state.page == "Generate Prompts":
         business_description = st.text_area("Tell us more about your business:")
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
         audience = st.text_input("Target audience (optional):")
+        num_prompts = st.number_input("Number of prompts to generate (1-100):", min_value=1, max_value=100, value=20, step=1)
 
-        def generate_prompts(services, location):
+        def generate_prompts(services, location, num_prompts):
             locations = [location]
             if "brisbane" in location.lower():
                 locations.extend(["Gold Coast", "Sunshine Coast", "Queensland"])
@@ -157,27 +123,27 @@ elif st.session_state.page == "Generate Prompts":
             ]
 
             prompts = []
-            for _ in range(100):
+            for _ in range(num_prompts):
                 service = random.choice(services)
                 loc = random.choice(locations)
                 template = random.choice(base_templates)
                 prompts.append(template.format(service=service.strip(), loc=loc.strip()))
             return prompts
 
-        if st.button("Generate Prompts"):
-            if not business_name or not services_input or not location:
-                st.warning("Please fill in Business Name, Services, and Location.")
+    if st.button("Generate Prompts"):
+        if not business_name or not services_input or not location:
+            st.warning("Please fill in Business Name, Services, and Location.")
+        else:
+            services = [s.strip() for s in services_input.split("\n") if s.strip()]
+            if not services:
+                st.warning("Please enter at least one service in the Services list.")
             else:
-                services = [s.strip() for s in services_input.split("\n") if s.strip()]
-                if not services:
-                    st.warning("Please enter at least one service in the Services list.")
-                else:
-                    generated_prompts = generate_prompts(services, location)
-                    st.success(f"Generated {len(generated_prompts)} prompts!")
+                generated_prompts = generate_prompts(services, location, num_prompts)
+                st.success(f"Generated {len(generated_prompts)} prompts!")
 
-                    for idx, prompt in enumerate(generated_prompts, 1):
-                        st.write(f"{idx}. {prompt}")
+                for idx, prompt in enumerate(generated_prompts, 1):
+                    st.write(f"{idx}. {prompt}")
 
-                    prompts_text = "\n".join(generated_prompts)
-                    st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
-                    st.text_area("📋 Copy Prompts", prompts_text, height=300)
+                prompts_text = "\n".join(generated_prompts)
+                st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
+                st.text_area("📋 Copy Prompts", prompts_text, height=300)
