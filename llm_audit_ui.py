@@ -38,17 +38,19 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Handle page state
+# Initialize session state
 if "page" not in st.session_state:
     st.session_state.page = "Run Audit"
 
 if "saved_prompts" not in st.session_state:
     st.session_state.saved_prompts = []
 
+if "audit_results" not in st.session_state:
+    st.session_state.audit_results = []
+
 # Sidebar navigation
 with st.sidebar:
     st.markdown("### Navigation")
-
     audit_clicked = st.button("🏃‍♂️ Run Audit", key="nav_audit")
     prompts_clicked = st.button("✨ Generate Prompts", key="nav_prompts")
     saved_clicked = st.button("💾 Saved Prompts", key="nav_saved")
@@ -98,7 +100,7 @@ if st.session_state.page == "Run Audit":
         prompt_list = prompts.split("\n")
         st.write("Running audits...")
 
-        results = []
+        audit_results = []
         for prompt in prompt_list:
             if not prompt.strip():
                 continue
@@ -112,30 +114,37 @@ if st.session_state.page == "Run Audit":
                 )
                 reply = response.choices[0].message.content
                 mentioned = brand.lower() in reply.lower()
-                results.append({"prompt": prompt, "brand": brand, "mentioned": "Yes" if mentioned else "No"})
+                audit_results.append({"prompt": prompt, "brand": brand, "mentioned": "Yes" if mentioned else "No"})
             except Exception as e:
-                results.append({"prompt": prompt, "brand": brand, "mentioned": f"Error: {str(e)}"})
+                audit_results.append({"prompt": prompt, "brand": brand, "mentioned": f"Error: {str(e)}"})
+
+        st.session_state.audit_results = audit_results
 
         sheet.clear()
         sheet.append_row(["Prompt", "Brand", "Mentioned?"])
-        for row in results:
+        for row in audit_results:
             sheet.append_row([row["prompt"], row["brand"], row["mentioned"]])
 
         st.success("Audit complete! ✅")
 
-        for idx, row in enumerate(results):
+    # Display audit results from session state
+    if st.session_state.audit_results:
+        for idx, row in enumerate(st.session_state.audit_results):
             col1, col2 = st.columns([0.85, 0.15])
             col1.write(f"**Prompt {idx+1}:** {row['prompt']} → Mentioned: {row['mentioned']}")
             if col2.button("Save", key=f"save_{idx}"):
                 if len(st.session_state.saved_prompts) >= 100:
                     st.warning("Cannot save: Maximum of 100 prompts reached.")
                 else:
-                    st.session_state.saved_prompts.append(row["prompt"])
-                    st.success(f"Saved Prompt {idx+1} ✅")
+                    if row["prompt"] not in st.session_state.saved_prompts:
+                        st.session_state.saved_prompts.append(row["prompt"])
+                        st.success(f"Saved Prompt {idx+1} ✅")
+                    else:
+                        st.info(f"Prompt {idx+1} already saved.")
 
         if st.button("💾 Save All Prompts"):
             remaining_slots = 100 - len(st.session_state.saved_prompts)
-            unsaved_prompts = [r["prompt"] for r in results if r["prompt"] not in st.session_state.saved_prompts]
+            unsaved_prompts = [r["prompt"] for r in st.session_state.audit_results if r["prompt"] not in st.session_state.saved_prompts]
             to_save = unsaved_prompts[:remaining_slots]
             st.session_state.saved_prompts.extend(to_save)
             if len(unsaved_prompts) > remaining_slots:
