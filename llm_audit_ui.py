@@ -9,9 +9,13 @@ import random
 # Inject custom CSS
 st.markdown("""
     <style>
-    .main, .block-container {
+    body, .main, .block-container {
         background-color: #ffffff;
         color: #000000;
+    }
+    .block-container {
+        max-width: 100%;
+        padding: 2rem 3rem;
     }
     [data-testid="stSidebar"] {
         background: linear-gradient(135deg, #6a11cb, #2575fc);
