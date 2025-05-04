@@ -11,7 +11,10 @@ from datetime import datetime
 # CSS STYLING
 st.markdown("""
     <style>
-    .main { background-color: #ffffff; color: #000000; }
+    .main {
+        background-color: #ffffff;
+        color: #000000;
+    }
     [data-testid="stSidebar"] {
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         color: white;
@@ -27,8 +30,13 @@ st.markdown("""
         background-color: rgba(255,255,255,0.1);
         border: none;
     }
-    .stButton > button:hover { background-color: rgba(255,255,255,0.3); }
-    .stButton > button.active { background-color: rgba(255,255,255,0.5); color: black; }
+    .stButton > button:hover {
+        background-color: rgba(255,255,255,0.3);
+    }
+    .stButton > button.active {
+        background-color: rgba(255,255,255,0.5);
+        color: black;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -99,17 +107,14 @@ if st.session_state.page == "Run Audit":
     if st.session_state.audit_results:
         st.subheader("Audit Results")
         df = pd.DataFrame(st.session_state.audit_results)
-
+        df["Action"] = ""
         for i, row in df.iterrows():
-            col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
             col1.write(row["Prompt"])
             col2.write(row["Brand"])
             col3.write(row["Mentioned"])
-
-            # Check if already saved
-            already_saved = row["Prompt"] in [p["Prompt"] for p in st.session_state.saved_prompts]
+            already_saved = any(p["Prompt"] == row["Prompt"] for p in st.session_state.saved_prompts)
             btn_label = "✅" if already_saved else "➕"
-
             if col4.button(btn_label, key=f"save_{i}"):
                 if not already_saved and len(st.session_state.saved_prompts) < 100:
                     st.session_state.saved_prompts.append({
@@ -117,22 +122,20 @@ if st.session_state.page == "Run Audit":
                         "Result": row["Mentioned"],
                         "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
                     })
-                    st.experimental_rerun()
-
-        # Save all prompts button
-        if st.button("💾 Save All Prompts"):
-            for row in st.session_state.audit_results:
-                if row["Prompt"] not in [p["Prompt"] for p in st.session_state.saved_prompts]:
-                    if len(st.session_state.saved_prompts) < 100:
-                        st.session_state.saved_prompts.append({
-                            "Prompt": row["Prompt"],
-                            "Result": row["Mentioned"],
-                            "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
-                        })
-            st.experimental_rerun()
+                    st.rerun()  # ✅ updated from st.experimental_rerun()
 
         csv = pd.DataFrame(st.session_state.audit_results).to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download Audit Results (.csv)", csv, file_name="audit_results.csv")
+
+        if st.button("💾 Save All Prompts"):
+            for row in st.session_state.audit_results:
+                if not any(p["Prompt"] == row["Prompt"] for p in st.session_state.saved_prompts):
+                    st.session_state.saved_prompts.append({
+                        "Prompt": row["Prompt"],
+                        "Result": row["Mentioned"],
+                        "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    })
+            st.rerun()  # ✅ updated from st.experimental_rerun()
 
 # -------- SAVED PROMPTS --------
 elif st.session_state.page == "Saved Prompts":
@@ -148,7 +151,7 @@ elif st.session_state.page == "Saved Prompts":
             cols[2].write(row["Date Saved"])
             if cols[3].button("❌", key=f"delete_{idx}"):
                 del st.session_state.saved_prompts[idx]
-                st.experimental_rerun()
+                st.rerun()  # ✅ updated from st.experimental_rerun()
 
 # -------- GENERATE PROMPTS --------
 elif st.session_state.page == "Generate Prompts":
