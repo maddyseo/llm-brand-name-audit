@@ -18,6 +18,23 @@ st.markdown("""
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         color: white;
     }
+    /* Sidebar buttons revert to transparent gradient style */
+    [data-testid="stSidebar"] .stButton > button {
+        display: block;
+        width: 100%;
+        padding: 10px 20px;
+        margin: 5px 0;
+        font-weight: bold;
+        border-radius: 8px;
+        color: white;
+        background-color: rgba(255,255,255,0.1);
+        border: none;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background-color: rgba(255,255,255,0.3);
+    }
+
+    /* MAIN CONTENT buttons orange + purple hover */
     .stButton > button {
         display: block;
         width: 100%;
@@ -26,12 +43,12 @@ st.markdown("""
         font-weight: bold;
         border-radius: 8px;
         color: white;
-        background-color: #ff7f50;  /* 🔥 ORANGE BUTTON */
+        background-color: #ff7f50;  /* Orange */
         border: none;
         transition: background-color 0.3s ease;
     }
     .stButton > button:hover {
-        background-color: #6a11cb;  /* PURPLE HOVER */
+        background-color: #6a11cb;  /* Purple hover */
     }
     </style>
 """, unsafe_allow_html=True)
