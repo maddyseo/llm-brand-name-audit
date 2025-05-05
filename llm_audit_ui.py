@@ -1,4 +1,3 @@
-# llm_audit_ui.py
 import openai
 import streamlit as st
 import gspread
@@ -8,7 +7,7 @@ import random
 import pandas as pd
 from datetime import datetime
 
-# CSS STYLING
+# CSS STYLING (UPDATED)
 st.markdown("""
     <style>
     .main {
@@ -27,15 +26,12 @@ st.markdown("""
         font-weight: bold;
         border-radius: 8px;
         color: white;
-        background-color: rgba(255,255,255,0.1);
+        background-color: #ff7f50;  /* 🔥 ORANGE BUTTON */
         border: none;
+        transition: background-color 0.3s ease;
     }
     .stButton > button:hover {
-        background-color: rgba(255,255,255,0.3);
-    }
-    .stButton > button.active {
-        background-color: rgba(255,255,255,0.5);
-        color: black;
+        background-color: #6a11cb;  /* PURPLE HOVER */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -47,6 +43,8 @@ if "audit_results" not in st.session_state:
     st.session_state.audit_results = []
 if "saved_prompts" not in st.session_state:
     st.session_state.saved_prompts = []
+if "saved_indices" not in st.session_state:
+    st.session_state.saved_indices = set()
 
 # Navigation
 with st.sidebar:
@@ -78,6 +76,7 @@ if st.session_state.page == "Run Audit":
 
     if st.button("Run Audit"):
         st.session_state.audit_results = []
+        st.session_state.saved_indices = set()  # Reset saved indices
         prompt_list = prompts_text.strip().split("\n")
         for prompt in prompt_list:
             if not prompt.strip():
@@ -113,29 +112,32 @@ if st.session_state.page == "Run Audit":
             col1.write(row["Prompt"])
             col2.write(row["Brand"])
             col3.write(row["Mentioned"])
-            already_saved = any(p["Prompt"] == row["Prompt"] for p in st.session_state.saved_prompts)
-            btn_label = "✅" if already_saved else "➕"
-            if col4.button(btn_label, key=f"save_{i}"):
-                if not already_saved and len(st.session_state.saved_prompts) < 100:
+            if i in st.session_state.saved_indices:
+                col4.button("✅", key=f"saved_{i}", disabled=True)
+            else:
+                if col4.button("➕", key=f"save_{i}"):
+                    if len(st.session_state.saved_prompts) < 100:
+                        st.session_state.saved_prompts.append({
+                            "Prompt": row["Prompt"],
+                            "Result": row["Mentioned"],
+                            "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
+                        })
+                        st.session_state.saved_indices.add(i)
+                        st.experimental_rerun()
+
+        if st.button("💾 Save All Prompts"):
+            for i, row in df.iterrows():
+                if i not in st.session_state.saved_indices and len(st.session_state.saved_prompts) < 100:
                     st.session_state.saved_prompts.append({
                         "Prompt": row["Prompt"],
                         "Result": row["Mentioned"],
                         "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
                     })
-                    st.rerun()  # ✅ updated from st.experimental_rerun()
+                    st.session_state.saved_indices.add(i)
+            st.experimental_rerun()
 
         csv = pd.DataFrame(st.session_state.audit_results).to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download Audit Results (.csv)", csv, file_name="audit_results.csv")
-
-        if st.button("💾 Save All Prompts"):
-            for row in st.session_state.audit_results:
-                if not any(p["Prompt"] == row["Prompt"] for p in st.session_state.saved_prompts):
-                    st.session_state.saved_prompts.append({
-                        "Prompt": row["Prompt"],
-                        "Result": row["Mentioned"],
-                        "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
-                    })
-            st.rerun()  # ✅ updated from st.experimental_rerun()
 
 # -------- SAVED PROMPTS --------
 elif st.session_state.page == "Saved Prompts":
@@ -151,7 +153,8 @@ elif st.session_state.page == "Saved Prompts":
             cols[2].write(row["Date Saved"])
             if cols[3].button("❌", key=f"delete_{idx}"):
                 del st.session_state.saved_prompts[idx]
-                st.rerun()  # ✅ updated from st.experimental_rerun()
+                st.session_state.saved_indices.discard(idx)
+                st.experimental_rerun()
 
 # -------- GENERATE PROMPTS --------
 elif st.session_state.page == "Generate Prompts":
