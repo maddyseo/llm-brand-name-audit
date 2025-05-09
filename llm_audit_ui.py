@@ -1,4 +1,3 @@
-
 import openai
 import streamlit as st
 import gspread
@@ -8,7 +7,7 @@ import random
 import pandas as pd
 from datetime import datetime
 
-# CSS STYLING (Polished)
+# CSS STYLING (UPDATED)
 st.markdown("""
     <style>
     .main {
@@ -37,7 +36,7 @@ st.markdown("""
         display: block;
         width: 100%;
         padding: 10px 20px;
-        margin: 10px 0;
+        margin: 5px 0;
         font-weight: bold;
         border-radius: 8px;
         color: white;
@@ -48,14 +47,8 @@ st.markdown("""
     .stButton > button:hover {
         background-color: #6a11cb;
     }
-    .audit-row {
-        padding: 8px 0;
-        border-bottom: 1px solid #eee;
-    }
-    .empty-state {
-        margin-top: 24px;
-        color: gray;
-        font-size: 16px;
+    .zebra tr:nth-child(even) {
+        background-color: rgba(255,255,255,0.03);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -73,11 +66,11 @@ if "saved_indices" not in st.session_state:
 # Navigation
 with st.sidebar:
     st.markdown("### Navigation")
-    if st.button("🏃‍♂️ Run Audit"):
+    if st.button("🏃 Run Audit"):
         st.session_state.page = "Run Audit"
     if st.button("✨ Generate Prompts"):
         st.session_state.page = "Generate Prompts"
-    if st.button("💾 Saved Prompts"):
+    if st.button("🖫 Saved Prompts"):
         st.session_state.page = "Saved Prompts"
 
 # OpenAI
@@ -94,7 +87,6 @@ sheet = client_gs.open("LLM Brand Mention Audit").sheet1
 if st.session_state.page == "Run Audit":
     st.title("Maddy")
     st.markdown("Enter prompts to check if your brand appears in ChatGPT's responses.")
-    st.markdown(" ")
 
     prompts_text = st.text_area("Enter one prompt per line:", value="What's the best shoe brand in USA\nWhat's most comfortable shoe you can recommend\nBest Addidas alternative\nShoes suitable for running\nTop 3 shoe brands in USA")
     brand = st.text_input("Brand name to track (e.g., Nike):", value="Nike")
@@ -131,13 +123,12 @@ if st.session_state.page == "Run Audit":
     if st.session_state.audit_results:
         st.subheader("Audit Results")
         st.markdown("**Prompt | Brand | Mentioned | Save**")
-
         df = pd.DataFrame(st.session_state.audit_results)
         for i, row in df.iterrows():
             col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-            col1.markdown(row["Prompt"])
-            col2.markdown(row["Brand"])
-            col3.markdown(row["Mentioned"])
+            col1.write(row["Prompt"])
+            col2.write(row["Brand"])
+            col3.write(row["Mentioned"])
             if i in st.session_state.saved_indices:
                 col4.button("✅", key=f"saved_{i}", disabled=True)
             else:
@@ -149,7 +140,7 @@ if st.session_state.page == "Run Audit":
                             "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
                         })
                         st.session_state.saved_indices.add(i)
-                        st.experimental_rerun()
+                        st.rerun()
 
         if st.button("💾 Save All Prompts"):
             for i, row in df.iterrows():
@@ -160,21 +151,18 @@ if st.session_state.page == "Run Audit":
                         "Date Saved": datetime.now().strftime("%Y-%m-%d %H:%M")
                     })
                     st.session_state.saved_indices.add(i)
-            st.experimental_rerun()
+            st.rerun()
 
-        csv = df.to_csv(index=False).encode('utf-8')
+        csv = pd.DataFrame(st.session_state.audit_results).to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download Audit Results (.csv)", csv, file_name="audit_results.csv")
 
 # -------- SAVED PROMPTS --------
 elif st.session_state.page == "Saved Prompts":
     st.title("💾 Saved Prompts")
-    st.markdown(" ")
+    st.write(f"{len(st.session_state.saved_prompts)}/100 prompts saved")
 
-    count = len(st.session_state.saved_prompts)
-    st.write(f"{count}/100 prompts saved")
-
-    if count == 0:
-        st.markdown('<div class="empty-state">You haven’t saved any prompts yet. Run an audit and click ➕ to add prompts here!</div>', unsafe_allow_html=True)
+    if len(st.session_state.saved_prompts) == 0:
+        st.info("🚫 You haven’t saved any prompts yet. Run an audit and click ➕ to add prompts here.")
     else:
         saved_df = pd.DataFrame(st.session_state.saved_prompts)
         for idx, row in saved_df.iterrows():
@@ -185,13 +173,11 @@ elif st.session_state.page == "Saved Prompts":
             if cols[3].button("❌", key=f"delete_{idx}"):
                 del st.session_state.saved_prompts[idx]
                 st.session_state.saved_indices.discard(idx)
-                st.experimental_rerun()
+                st.rerun()
 
 # -------- GENERATE PROMPTS --------
 elif st.session_state.page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
-    st.markdown(" ")
-
     with st.expander("Fill in your business details to generate prompts", expanded=True):
         business_name = st.text_input("Business Name (e.g., Aspen Services):")
         services_input = st.text_area("Services you offer (one per line):")
@@ -204,7 +190,6 @@ elif st.session_state.page == "Generate Prompts":
             locations = [location]
             if "brisbane" in location.lower():
                 locations.extend(["Gold Coast", "Sunshine Coast", "Queensland"])
-
             base_templates = [
                 "Best {service} services in {loc}",
                 "Affordable {service} companies near me in {loc}",
@@ -217,7 +202,6 @@ elif st.session_state.page == "Generate Prompts":
                 "Most recommended {service} company in {loc}",
                 "{service} for home owners in {loc}"
             ]
-
             prompts = []
             for _ in range(num_prompts):
                 service = random.choice(services)
@@ -232,12 +216,10 @@ elif st.session_state.page == "Generate Prompts":
             else:
                 services = [s.strip() for s in services_input.split("\n") if s.strip()]
                 if not services:
-                    st.warning("Please enter at least one service in the Services list.")
+                    st.warning("Please enter at least one service.")
                 else:
                     generated_prompts = generate_prompts(services, location)
                     st.success(f"Generated {len(generated_prompts)} prompts!")
-                    for idx, prompt in enumerate(generated_prompts, 1):
-                        st.write(f"{idx}. {prompt}")
                     prompts_text = "\n".join(generated_prompts)
                     st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
                     st.text_area("📋 Copy Prompts", prompts_text, height=300)
