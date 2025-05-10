@@ -184,13 +184,25 @@ elif st.session_state.page == "Generate Prompts":
         business_description = st.text_area("Tell us more about your business:")
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
         audience = st.text_input("Target audience (optional):")
+        keywords_input = st.text_area("Keywords (optional):", help="Paste your SEO keywords from tools like SEMrush, Keyword Planner, Ahrefs")
+        global_targeting = st.checkbox("My business targets global or multiple countries")
         num_prompts = st.number_input("How many prompts to generate? (1-100)", min_value=1, max_value=100, value=50)
 
-        def generate_prompts(services, location):
+        def generate_prompts(services, location, keywords, global_mode):
             locations = [location]
             if "brisbane" in location.lower():
                 locations.extend(["Gold Coast", "Sunshine Coast", "Queensland"])
-            base_templates = [
+            keywords = [k.strip() for k in keywords if k.strip()]
+
+            global_templates = [
+                "Top-rated {service} companies worldwide",
+                "Affordable {service} services across countries",
+                "Who offers the best {service} globally",
+                "Trusted {service} providers for global clients",
+                "Best international brands for {service}"
+            ]
+
+            local_templates = [
                 "Best {service} services in {loc}",
                 "Affordable {service} companies near me in {loc}",
                 "Top-rated {service} providers in {loc}",
@@ -202,12 +214,21 @@ elif st.session_state.page == "Generate Prompts":
                 "Most recommended {service} company in {loc}",
                 "{service} for home owners in {loc}"
             ]
+
             prompts = []
             for _ in range(num_prompts):
                 service = random.choice(services)
-                loc = random.choice(locations)
-                template = random.choice(base_templates)
-                prompts.append(template.format(service=service.strip(), loc=loc.strip()))
+                keyword = random.choice(keywords) if keywords else ""
+                if global_mode:
+                    template = random.choice(global_templates)
+                    prompt = template.format(service=service.strip())
+                else:
+                    template = random.choice(local_templates)
+                    loc = random.choice(locations)
+                    prompt = template.format(service=service.strip(), loc=loc.strip())
+                if keyword:
+                    prompt += f" including '{keyword}'"
+                prompts.append(prompt)
             return prompts
 
         if st.button("Generate Prompts"):
@@ -215,10 +236,11 @@ elif st.session_state.page == "Generate Prompts":
                 st.warning("Please fill in Business Name, Services, and Location.")
             else:
                 services = [s.strip() for s in services_input.split("\n") if s.strip()]
+                keywords = [k.strip() for k in keywords_input.split("\n") if k.strip()]
                 if not services:
                     st.warning("Please enter at least one service.")
                 else:
-                    generated_prompts = generate_prompts(services, location)
+                    generated_prompts = generate_prompts(services, location, keywords, global_targeting)
                     st.success(f"Generated {len(generated_prompts)} prompts!")
                     prompts_text = "\n".join(generated_prompts)
                     st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
