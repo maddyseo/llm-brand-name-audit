@@ -176,6 +176,7 @@ elif st.session_state.page == "Saved Prompts":
                 st.rerun()
 
 # -------- GENERATE PROMPTS --------
+# Add this inside your "Generate Prompts" section in the final `elif` block
 elif st.session_state.page == "Generate Prompts":
     st.title("✨ Generate Prompts for Your Business")
     with st.expander("Fill in your business details to generate prompts", expanded=True):
@@ -184,64 +185,68 @@ elif st.session_state.page == "Generate Prompts":
         business_description = st.text_area("Tell us more about your business:")
         location = st.text_input("Location (e.g., Brisbane, Gold Coast):")
         audience = st.text_input("Target audience (optional):")
-        keywords_input = st.text_area("Keywords (optional):", help="Paste your SEO keywords from tools like SEMrush, Keyword Planner, Ahrefs")
-        global_targeting = st.checkbox("My business targets global or multiple countries")
-        num_prompts = st.number_input("How many prompts to generate? (1-100)", min_value=1, max_value=100, value=50)
+        seo_keywords_input = st.text_area("SEO Keywords (one per line):")
+        is_global = st.checkbox("🌍 My business serves globally or in multiple countries")
+        num_prompts = st.number_input("How many prompts to generate? (1–100)", min_value=1, max_value=100, value=50)
 
-        def generate_prompts(services, location, keywords, global_mode):
-            locations = [location]
-            if "brisbane" in location.lower():
-                locations.extend(["Gold Coast", "Sunshine Coast", "Queensland"])
-            keywords = [k.strip() for k in keywords if k.strip()]
+        def generate_prompts_v2(business_name, services, business_description, location, audience, seo_keywords, is_global, count):
+            import openai
+            base_instruction = (
+                "Generate prompts based on the business services, business information provided, "
+                "and the locations the user has provided. Act as an expert in AI Brand Visibility improvement "
+                "and connect SEO keywords provided to influence the overall prompt generation. "
+                "You can ignore any keyword which includes 'near me'. "
+                "Also, make sure all the prompts sound natural and resemble what a potential customer would type "
+                "into ChatGPT when looking for a solution related to the business information provided."
+            )
 
-            global_templates = [
-                "Top-rated {service} companies worldwide",
-                "Affordable {service} services across countries",
-                "Who offers the best {service} globally",
-                "Trusted {service} providers for global clients",
-                "Best international brands for {service}"
-            ]
+            prompt_data = (
+                f"\nBusiness Name: {business_name}\n"
+                f"Business Services: {services}\n"
+                f"Business Description: {business_description}\n"
+                f"Location: {'Global' if is_global else location}\n"
+                f"Target Audience: {audience}\n"
+                f"SEO Keywords: {seo_keywords}"
+            )
 
-            local_templates = [
-                "Best {service} services in {loc}",
-                "Affordable {service} companies near me in {loc}",
-                "Top-rated {service} providers in {loc}",
-                "Who provides {service} in {loc}",
-                "{service} reviews in {loc}",
-                "Where to find {service} in {loc}",
-                "Residential {service} experts in {loc}",
-                "Commercial {service} specialists in {loc}",
-                "Most recommended {service} company in {loc}",
-                "{service} for home owners in {loc}"
-            ]
+            full_prompt = (
+                f"{base_instruction}\n{prompt_data}\n\n"
+                f"Generate {count} natural language prompts:"
+            )
 
-            prompts = []
-            for _ in range(num_prompts):
-                service = random.choice(services)
-                keyword = random.choice(keywords) if keywords else ""
-                if global_mode:
-                    template = random.choice(global_templates)
-                    prompt = template.format(service=service.strip())
-                else:
-                    template = random.choice(local_templates)
-                    loc = random.choice(locations)
-                    prompt = template.format(service=service.strip(), loc=loc.strip())
-                if keyword:
-                    prompt += f" including '{keyword}'"
-                prompts.append(prompt)
-            return prompts
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful AI marketing assistant."},
+                        {"role": "user", "content": full_prompt}
+                    ]
+                )
+                reply = response.choices[0].message.content
+                generated = [line.strip("- ").strip() for line in reply.split("\n") if line.strip()]
+                return generated
+            except Exception as e:
+                st.error(f"❌ Failed to generate prompts: {e}")
+                return []
 
         if st.button("Generate Prompts"):
             if not business_name or not services_input or not location:
-                st.warning("Please fill in Business Name, Services, and Location.")
+                st.warning("⚠️ Please fill in Business Name, Services, and Location.")
             else:
                 services = [s.strip() for s in services_input.split("\n") if s.strip()]
-                keywords = [k.strip() for k in keywords_input.split("\n") if k.strip()]
-                if not services:
-                    st.warning("Please enter at least one service.")
-                else:
-                    generated_prompts = generate_prompts(services, location, keywords, global_targeting)
-                    st.success(f"Generated {len(generated_prompts)} prompts!")
-                    prompts_text = "\n".join(generated_prompts)
-                    st.download_button("📥 Download Prompts (.txt)", prompts_text, file_name="generated_prompts.txt")
-                    st.text_area("📋 Copy Prompts", prompts_text, height=300)
+                seo_keywords = [k.strip() for k in seo_keywords_input.split("\n") if k.strip()]
+                prompts = generate_prompts_v2(
+                    business_name=business_name,
+                    services=services,
+                    business_description=business_description,
+                    location=location,
+                    audience=audience,
+                    seo_keywords=seo_keywords,
+                    is_global=is_global,
+                    count=num_prompts
+                )
+                if prompts:
+                    st.success(f"✅ Generated {len(prompts)} prompts!")
+                    full_text = "\n".join(prompts)
+                    st.download_button("📥 Download Prompts (.txt)", full_text, file_name="generated_prompts.txt")
+                    st.text_area("📋 Copy Prompts", full_text, height=300)
