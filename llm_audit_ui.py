@@ -192,13 +192,18 @@ elif st.session_state.page == "Generate Prompts":
         def generate_prompts_v2(business_name, services, business_description, location, audience, seo_keywords, is_global, count):
             import openai
             base_instruction = (
-                "You are an expert in AI brand visibility and prompt generation."
-                "Your task is to generate natural prompts that a potential customer would enter into AI tools like ChatGPT when actively looking for a product or service related to the business provided."
-                "Each prompt must reflect clear commercial or transactional intent — for example: a person looking to discover, compare, or evaluate businesses, services, or providers."
-                "You must use the provided business services, business description, location, and SEO keywords to influence your prompt generation. DO NOT make the prompts sound like ads or educational questions."
-                "Only include prompts that would naturally result in the LLM mentioning brands or business names in its response. You can ignore any keyword that includes “near me”."
-                "The prompts should be phrased in the way someone would actually search in ChatGPT or Google when trying to find a business like the one described."
-                "Respond with only the list of prompts. No extra commentary. Dont include bullets or numbers just list down prompts one after the other"
+                    "You are an expert in AI brand visibility and prompt generation.\n\n"
+                    "Your task is to generate natural prompts that a potential customer would enter into AI tools like ChatGPT "
+                    "when actively looking for a product or service related to the business provided.\n\n"
+                    "Each prompt must reflect clear commercial or transactional intent — for example: a person trying to discover, "
+                    "compare, or evaluate businesses, services, or providers.\n\n"
+                    "Use the provided business services, business description, location, and SEO keywords to influence your prompt generation. "
+                    "Include industry-specific terms when appropriate (e.g., fintech, healthcare, landscaping).\n\n"
+                    "Avoid unnatural phrasing like ‘Looking for...’ or ‘Searching for...’. "
+                    "Write prompts exactly how a real customer would search — short, clear, and with direct intent. "
+                    "Exclude any keyword that includes the phrase ‘near me’.\n\n"
+                    "Output each prompt on a new line without numbers, bullets, or question marks at the end. "
+                    "Only return the list of prompts — nothing else."
             )
 
             prompt_data = (
